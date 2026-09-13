@@ -76,7 +76,7 @@ class StartPageView(TemplateView):
             today_datetime = timezone.localtime().replace(hour=0, minute=0, second=0, microsecond=0)
             base_qs = Event.exclude_talks_testmode(
                 Event.objects.select_related('organizer')
-                .prefetch_related('_settings_objects')
+                .prefetch_related('_settings_objects', 'subevents')
                 .filter(live=True, testmode=False)
             )
             future_filter = Q(date_to__gte=today_datetime) | Q(date_to__isnull=True, date_from__gte=today_datetime)
@@ -97,7 +97,7 @@ class StartPageView(TemplateView):
             ctx['featured_events'] = list(featured_qs)
             ctx['upcoming_events'] = list(upcoming_qs)
             ctx['past_events'] = list(past_qs)
-            ctx['has_ongoing_events'] = any(e.is_ongoing for e in ctx['upcoming_events'])
+            ctx['has_ongoing_events'] = any(e.is_ongoing for e in ctx['upcoming_events'] + ctx['featured_events'])
 
             followed_upcoming_events = []
             if self.request.user.is_authenticated:
@@ -162,7 +162,7 @@ class UpcomingEventsView(PaginationMixin, ListView):
         today_datetime = timezone.localtime().replace(hour=0, minute=0, second=0, microsecond=0)
         qs = Event.exclude_talks_testmode(
             Event.objects.select_related('organizer')
-            .prefetch_related('_settings_objects')
+            .prefetch_related('_settings_objects', 'subevents')
             .filter(live=True, is_public=True)
             .filter(Q(startpage_visible=True) | Q(startpage_featured=True))
             .filter(Q(date_to__gte=today_datetime) | Q(date_to__isnull=True, date_from__gte=today_datetime))

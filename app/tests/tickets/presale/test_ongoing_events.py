@@ -169,3 +169,38 @@ def test_upcoming_events_page_ongoing_header_and_badge(test_organizer, client):
     assert 'Upcoming and Ongoing Events' in content
     assert 'startpage-sash-ribbon' in content
     assert 'Ongoing' in content
+
+
+@pytest.mark.django_db
+def test_startpage_ongoing_when_featured_event_is_ongoing(test_organizer, client):
+    current = now()
+    with scopes_disabled():
+        # Only an ongoing featured event, no ongoing in regular upcoming
+        Event.objects.create(
+            organizer=test_organizer,
+            name='Featured Ongoing Summit',
+            slug='featured-ongoing-summit',
+            date_from=current - timedelta(days=1),
+            date_to=current + timedelta(days=2),
+            live=True,
+            is_public=True,
+            startpage_visible=True,
+            startpage_featured=True,
+        )
+        Event.objects.create(
+            organizer=test_organizer,
+            name='Future Regular Meetup',
+            slug='future-regular-meetup',
+            date_from=current + timedelta(days=10),
+            date_to=current + timedelta(days=11),
+            live=True,
+            is_public=True,
+            startpage_visible=True,
+            startpage_featured=False,
+        )
+
+    response = client.get('/')
+    assert response.status_code == 200
+    content = response.content.decode('utf-8')
+    assert 'Upcoming and ongoing events' in content
+    assert response.context['has_ongoing_events'] is True
