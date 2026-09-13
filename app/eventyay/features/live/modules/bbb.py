@@ -16,6 +16,7 @@ class BBBModule(BaseModule):
         super().__init__(*args, **kwargs)
 
     async def _get_join_url(self, join_url):
+        """Await and return the join URL, raising ConsumerException if BBB server is unavailable."""
         try:
             return await join_url
         except BBBServerUnavailable as exc:
@@ -30,6 +31,7 @@ class BBBModule(BaseModule):
         module_required="call.bigbluebutton",
     )
     async def room_url(self, body):
+        """Generate and send join URL for the room's BBB meeting if BBB is available."""
         if not await is_bbb_available_async(self.consumer.event):
             raise ConsumerException(
                 "bbb.unavailable",
@@ -56,6 +58,7 @@ class BBBModule(BaseModule):
 
     @command("call_url")
     async def call_url(self, body):
+        """Generate and send join URL for a specific BBB call ID if BBB is available."""
         if not await is_bbb_available_async(self.consumer.event):
             raise ConsumerException(
                 "bbb.unavailable",
@@ -81,6 +84,7 @@ class BBBModule(BaseModule):
         module_required="call.bigbluebutton",
     )
     async def recordings(self, body):
+        """Fetch and send the list of recordings for the room if BBB is available."""
         if not await is_bbb_available_async(self.consumer.event):
             raise ConsumerException(
                 "bbb.unavailable",

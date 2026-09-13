@@ -571,6 +571,7 @@ class RoomModule(BaseModule):
     @command("config.patch")
     @room_action(permission_required=Permission.ROOM_UPDATE)
     async def config_patch(self, body):
+        """Patch room configuration while validating server-backed module availability and permissions."""
         newly_added_server_modules = newly_added_server_backed_room_modules(
             self.room.module_config,
             body.get("module_config"),

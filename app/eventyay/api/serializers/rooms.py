@@ -23,6 +23,7 @@ class RoomSerializer(RoomLinkedSessionsSerializerMixin, I18nAwareModelSerializer
     )
 
     def validate_module_config(self, value):
+        """Validate module configuration and reject BBB modules when BBB is unavailable."""
         has_bbb = any(
             isinstance(m, dict) and m.get("type") == "call.bigbluebutton"
             for m in (value or [])

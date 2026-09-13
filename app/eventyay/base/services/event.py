@@ -304,6 +304,7 @@ def get_room_config(room, permissions, *, current_stream=_UNSET):
 
 
 def get_event_config_for_user(event, user):
+    """Build and return event configuration for a user, including video feature availability."""
     permissions = event.get_all_permissions(user)
     cfg = event.config or {}
     # Only expose schedule import-related pretalx config keys to the frontend.
@@ -426,6 +427,7 @@ def _create_room(data, with_channel=False, permission_preset="public", creator=N
 
 
 async def create_room(event, data, creator):
+    """Create a new room for the event while validating server-backed module availability and permissions."""
     types = {m["type"] for m in data.get("modules", [])}
     livestream_types = {
         "livestream.native",
