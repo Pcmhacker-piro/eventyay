@@ -18,12 +18,11 @@ from eventyay.api.serializers.theme import (
     EventThemeSerializer,
     OrganizerThemeSerializer,
     ThemeExportSerializer,
-    ThemePreviewSerializer,
     ThemeTokenUpdateSerializer,
 )
 from eventyay.base.models import Event, Organizer
 from eventyay.eventyay_common.models import EventTheme, OrganizerTheme
-from eventyay.eventyay_common.theme.loader import ThemeTokenLoader
+
 
 logger = logging.getLogger(__name__)
 

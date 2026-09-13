@@ -6,7 +6,7 @@ Stores design token overrides and theme settings for organizations and events.
 
 import json
 import logging
-from typing import Any, Dict, Optional
+from typing import Any
 
 from django.core.exceptions import ValidationError
 from django.db import models
@@ -15,10 +15,11 @@ from django.utils.translation import gettext_lazy as _
 from eventyay.base.models.base import LoggedModel
 from eventyay.base.models.mixins import TimestampedModel
 
+
 logger = logging.getLogger(__name__)
 
 
-def validate_token_overrides(value: Dict[str, Any]) -> None:
+def validate_token_overrides(value: dict[str, Any]) -> None:
     """Validate token override structure."""
     if not isinstance(value, dict):
         raise ValidationError(_('Token overrides must be a valid JSON object'))
@@ -76,14 +77,14 @@ class BaseTheme(LoggedModel, TimestampedModel, models.Model):
         """Get display name for this theme."""
         raise NotImplementedError
 
-    def get_primary_color(self) -> Optional[str]:
+    def get_primary_color(self) -> str | None:
         """Extract primary color from overrides."""
         try:
             return self.token_overrides.get('colors', {}).get('primary')
         except (AttributeError, TypeError):
             return None
 
-    def get_secondary_color(self) -> Optional[str]:
+    def get_secondary_color(self) -> str | None:
         """Extract secondary color from overrides."""
         try:
             return self.token_overrides.get('colors', {}).get('secondary')
@@ -183,7 +184,7 @@ class EventTheme(BaseTheme):
     def __str__(self) -> str:
         return f'Theme for {self.event.name}'
 
-    def get_effective_tokens(self) -> Dict[str, Any]:
+    def get_effective_tokens(self) -> dict[str, Any]:
         """
         Get effective tokens for this event.
 

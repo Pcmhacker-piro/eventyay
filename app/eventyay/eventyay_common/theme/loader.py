@@ -9,7 +9,8 @@ import json
 import logging
 from copy import deepcopy
 from pathlib import Path
-from typing import Any, Dict, Optional
+from typing import Any
+
 
 logger = logging.getLogger(__name__)
 
@@ -20,10 +21,10 @@ class ThemeTokenLoader:
     BASE_TOKENS_PATH = Path(__file__).parent / 'default_tokens.json'
 
     @classmethod
-    def load_base_tokens(cls) -> Dict[str, Any]:
+    def load_base_tokens(cls) -> dict[str, Any]:
         """Load base/foundation tokens from default theme."""
         try:
-            with open(cls.BASE_TOKENS_PATH, 'r') as f:
+            with open(cls.BASE_TOKENS_PATH) as f:
                 data = json.load(f)
                 return data
         except (FileNotFoundError, json.JSONDecodeError) as e:
@@ -31,7 +32,9 @@ class ThemeTokenLoader:
             return {}
 
     @classmethod
-    def resolve_token_references(cls, tokens: Dict[str, Any], base_tokens: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
+    def resolve_token_references(
+        cls, tokens: dict[str, Any], base_tokens: dict[str, Any] | None = None
+    ) -> dict[str, Any]:
         """
         Resolve token references (e.g., {colors.primary}) in semantic tokens.
 
@@ -64,7 +67,7 @@ class ThemeTokenLoader:
         return resolved
 
     @staticmethod
-    def _flatten_dict(d: Dict, parent_key: str = '') -> Dict[str, Any]:
+    def _flatten_dict(d: dict, parent_key: str = '') -> dict[str, Any]:
         """Flatten nested dictionary."""
         items = []
         for k, v in d.items():
@@ -76,7 +79,7 @@ class ThemeTokenLoader:
         return dict(items)
 
     @staticmethod
-    def _get_nested_value(d: Dict, path: str) -> Optional[Any]:
+    def _get_nested_value(d: dict, path: str) -> Any | None:
         """Get nested value using dot notation."""
         keys = path.split('.')
         current = d
@@ -88,7 +91,7 @@ class ThemeTokenLoader:
         return current
 
     @staticmethod
-    def _set_nested_value(d: Dict, path: str, value: Any) -> None:
+    def _set_nested_value(d: dict, path: str, value: Any) -> None:
         """Set nested value using dot notation."""
         keys = path.split('.')
         current = d
@@ -99,7 +102,7 @@ class ThemeTokenLoader:
         current[keys[-1]] = value
 
     @classmethod
-    def merge_tokens(cls, base: Dict[str, Any], overrides: Dict[str, Any]) -> Dict[str, Any]:
+    def merge_tokens(cls, base: dict[str, Any], overrides: dict[str, Any]) -> dict[str, Any]:
         """
         Deep merge override tokens into base tokens.
 
@@ -112,7 +115,7 @@ class ThemeTokenLoader:
         return result
 
     @staticmethod
-    def _deep_merge(base: Dict, overrides: Dict) -> None:
+    def _deep_merge(base: dict, overrides: dict) -> None:
         """Recursively merge overrides into base."""
         for key, value in overrides.items():
             if key in base and isinstance(base[key], dict) and isinstance(value, dict):
@@ -121,7 +124,7 @@ class ThemeTokenLoader:
                 base[key] = deepcopy(value)
 
     @classmethod
-    def export_css_variables(cls, tokens: Dict[str, Any], prefix: str = '--') -> str:
+    def export_css_variables(cls, tokens: dict[str, Any], prefix: str = '--') -> str:
         """
         Export tokens as CSS variables.
 
@@ -136,6 +139,10 @@ class ThemeTokenLoader:
             if isinstance(value, (str, int, float)):
                 var_name = f'{prefix}{path.replace(".", "-")}'
                 css_lines.append(f'  {var_name}: {value};')
+                if path.startswith('colors.'):
+                    norm_var = f'{prefix}color-{path[7:].replace(".", "-")}'
+                    if norm_var != var_name:
+                        css_lines.append(f'  {norm_var}: {value};')
 
         css_lines.append('}')
         return '\n'.join(css_lines)
@@ -143,9 +150,9 @@ class ThemeTokenLoader:
     @classmethod
     def get_merged_tokens(
         cls,
-        base_overrides: Optional[Dict[str, Any]] = None,
-        event_overrides: Optional[Dict[str, Any]] = None,
-    ) -> Dict[str, Any]:
+        base_overrides: dict[str, Any] | None = None,
+        event_overrides: dict[str, Any] | None = None,
+    ) -> dict[str, Any]:
         """
         Get fully merged tokens with proper precedence.
 

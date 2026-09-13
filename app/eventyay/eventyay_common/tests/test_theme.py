@@ -5,7 +5,6 @@ Verifies token loading, merging, and model functionality.
 """
 
 from django.test import TestCase
-from django.utils.translation import gettext_lazy as _
 
 from eventyay.base.models import Event, Organizer, User
 from eventyay.eventyay_common.models import EventTheme, OrganizerTheme
@@ -137,7 +136,8 @@ class EventThemeModelTestCase(TestCase)    :
 
     def setUp(self):
         """Set up test fixtures."""
-        from datetime import datetime, timedelta
+        from datetime import timedelta
+
         from django.utils import timezone
 
         self.organizer = Organizer.objects.create(
@@ -162,7 +162,7 @@ class EventThemeModelTestCase(TestCase)    :
 
     def test_inherit_organizer_theme(self):
         """Test event inheriting organizer theme."""
-        org_theme = OrganizerTheme.objects.create(
+        OrganizerTheme.objects.create(
             organizer=self.organizer,
             token_overrides={'colors': {'primary': '#FF0000'}},
         )
@@ -235,6 +235,7 @@ class ThemeIntegrationTestCase(TestCase):
     def setUp(self):
         """Set up test fixtures."""
         from datetime import timedelta
+
         from django.utils import timezone
 
         self.organizer = Organizer.objects.create(
@@ -252,7 +253,7 @@ class ThemeIntegrationTestCase(TestCase):
     def test_complete_theming_flow(self):
         """Test complete theming workflow."""
         # 1. Create organizer theme
-        org_theme = OrganizerTheme.objects.create(
+        OrganizerTheme.objects.create(
             organizer=self.organizer,
             color_mode='auto',
             token_overrides={
@@ -291,7 +292,7 @@ class ThemeIntegrationTestCase(TestCase):
     def test_theme_with_custom_css(self):
         """Test theme with custom CSS rules."""
         custom_css = '''
-        .event-header { 
+        .event-header {
             background: linear-gradient(135deg, var(--color-primary), var(--color-secondary));
         }
         '''
@@ -302,3 +303,170 @@ class ThemeIntegrationTestCase(TestCase):
 
         self.assertIn('linear-gradient', theme.custom_css)
         self.assertIn('var(--color-primary)', theme.custom_css)
+
+
+class ThemeFormsTestCase(TestCase):
+    """Test theme forms and validation."""
+
+    def setUp(self):
+        from datetime import timedelta
+
+        from django.utils import timezone
+        self.organizer = Organizer.objects.create(name='Form Org', slug='form-org')
+        self.event = Event.objects.create(
+            name='Form Event',
+            slug='form-event',
+            organizer=self.organizer,
+            date_from=timezone.now(),
+            date_to=timezone.now() + timedelta(days=1),
+        )
+
+    def test_event_theme_form_valid(self):
+        from eventyay.orga.forms.theme import EventThemeForm
+        form_data = {
+            'color_mode': 'dark',
+            'primary_color': '#EB2188',
+            'secondary_color': '#3B82F6',
+            'inherit_organizer_theme': True,
+            'is_active': True,
+            'custom_css': '.btn { color: red; }',
+            'description': 'Test description',
+        }
+        form = EventThemeForm(data=form_data)
+        self.assertTrue(form.is_valid())
+        theme = form.save(commit=False)
+        theme.event = self.event
+        theme.save()
+        self.assertEqual(theme.color_mode, 'dark')
+        self.assertEqual(theme.token_overrides['colors']['primary'], '#EB2188')
+        self.assertEqual(theme.token_overrides['colors']['secondary'], '#3B82F6')
+
+    def test_event_theme_form_unbalanced_css(self):
+        from eventyay.orga.forms.theme import EventThemeForm
+        form_data = {
+            'color_mode': 'light',
+            'custom_css': '.btn { color: red;',
+        }
+        form = EventThemeForm(data=form_data)
+        self.assertFalse(form.is_valid())
+        self.assertIn('custom_css', form.errors)
+
+    def test_token_import_form_valid(self):
+        import json
+
+        from django.core.files.uploadedfile import SimpleUploadedFile
+
+        from eventyay.orga.forms.theme import TokenImportForm
+        valid_json = json.dumps({'colors': {'primary': '#123456'}}).encode('utf-8')
+        file = SimpleUploadedFile('theme.json', valid_json, content_type='application/json')
+        form = TokenImportForm(data={'override_existing': True}, files={'json_file': file})
+        self.assertTrue(form.is_valid())
+
+    def test_token_import_form_invalid_json(self):
+        from django.core.files.uploadedfile import SimpleUploadedFile
+
+        from eventyay.orga.forms.theme import TokenImportForm
+        invalid_json = b'{not valid json'
+        file = SimpleUploadedFile('theme.json', invalid_json, content_type='application/json')
+        form = TokenImportForm(data={'override_existing': True}, files={'json_file': file})
+        self.assertFalse(form.is_valid())
+        self.assertIn('json_file', form.errors)
+
+
+class ThemeAPITestCase(TestCase):
+    """Test Theme API viewsets."""
+
+    def setUp(self):
+        from datetime import timedelta
+
+        from django.utils import timezone
+        self.organizer = Organizer.objects.create(name='API Org', slug='api-org')
+        self.event = Event.objects.create(
+            name='API Event',
+            slug='api-event',
+            organizer=self.organizer,
+            date_from=timezone.now(),
+            date_to=timezone.now() + timedelta(days=1),
+        )
+        self.user = User.objects.create(email='test@example.com')
+
+    def test_organizer_theme_api_retrieve(self):
+        from rest_framework.test import APIRequestFactory
+
+        from eventyay.api.views.theme import OrganizerThemeViewSet
+        factory = APIRequestFactory()
+        view = OrganizerThemeViewSet.as_view({'get': 'retrieve'})
+        request = factory.get(f'/api/v1/organizers/{self.organizer.slug}/themes/')
+        request.user = self.user
+        response = view(request, organizer_slug=self.organizer.slug)
+        self.assertEqual(response.status_code, 200)
+        self.assertIn('tokens', response.data)
+
+    def test_event_theme_api_retrieve(self):
+        from rest_framework.test import APIRequestFactory
+
+        from eventyay.api.views.theme import EventThemeViewSet
+        factory = APIRequestFactory()
+        view = EventThemeViewSet.as_view({'get': 'retrieve'})
+        request = factory.get(f'/api/v1/organizers/{self.organizer.slug}/events/{self.event.slug}/theme/')
+        request.user = self.user
+        response = view(request, organizer_slug=self.organizer.slug, event_slug=self.event.slug)
+        self.assertEqual(response.status_code, 200)
+        self.assertIn('tokens', response.data)
+
+    def test_event_theme_api_export(self):
+        from rest_framework.test import APIRequestFactory
+
+        from eventyay.api.views.theme import EventThemeViewSet
+        factory = APIRequestFactory()
+        view = EventThemeViewSet.as_view({'post': 'export'})
+        request = factory.post(f'/api/v1/organizers/{self.organizer.slug}/events/{self.event.slug}/theme/export/')
+        request.user = self.user
+        response = view(request, organizer_slug=self.organizer.slug, event_slug=self.event.slug)
+        self.assertEqual(response.status_code, 200)
+        self.assertIn('name', response.data)
+        self.assertIn('colorMode', response.data)
+
+
+class ThemeContextTestCase(TestCase):
+    """Test theme context processor injection."""
+
+    def setUp(self):
+        from datetime import timedelta
+
+        from django.utils import timezone
+        self.organizer = Organizer.objects.create(name='Ctx Org', slug='ctx-org')
+        self.event = Event.objects.create(
+            name='Ctx Event',
+            slug='ctx-event',
+            organizer=self.organizer,
+            date_from=timezone.now(),
+            date_to=timezone.now() + timedelta(days=1),
+        )
+
+    def test_event_theme_in_context(self):
+        from django.contrib.auth.models import AnonymousUser
+        from django.test import RequestFactory
+        from django_scopes import scope
+
+        from eventyay.presale.context import _default_context
+        EventTheme.objects.create(
+            event=self.event,
+            color_mode='dark',
+            custom_css='.custom { color: red; }',
+            token_overrides={'colors': {'primary': '#112233'}},
+        )
+        factory = RequestFactory()
+        request = factory.get('/')
+        request.user = AnonymousUser()
+        request.event = self.event
+        request.organizer = self.organizer
+        request.resolver_match = None
+
+        with scope(event=self.event):
+            ctx = _default_context(request)
+        self.assertIn('event_theme', ctx)
+        self.assertIn('#112233', ctx['event_theme_tokens'])
+        self.assertEqual(ctx['event_theme_color_mode'], 'dark')
+        self.assertEqual(ctx['event_theme_custom_css'], '.custom { color: red; }')
+

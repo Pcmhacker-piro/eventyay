@@ -2,7 +2,6 @@ import html
 import io
 import json
 import logging
-import operator
 import re
 from collections import OrderedDict
 from decimal import Decimal, InvalidOperation
@@ -17,12 +16,12 @@ from django.db import transaction
 from django.db.models import ProtectedError
 from django.forms import inlineformset_factory
 from django.http import (
+    FileResponse,
     Http404,
     HttpResponse,
     HttpResponseBadRequest,
     HttpResponseNotAllowed,
     JsonResponse,
-    FileResponse,
 )
 from django.shortcuts import get_object_or_404, redirect
 from django.urls import reverse
@@ -39,8 +38,6 @@ from i18nfield.utils import I18nJSONEncoder
 from eventyay.base.channels import get_all_sales_channels
 from eventyay.base.email import get_available_placeholders
 from eventyay.base.meetup import is_meetup_event
-from eventyay.common.sanitizers import sanitize_email_html
-from eventyay.timezones import localize_datetime
 from eventyay.base.models import (
     Event,
     LogEntry,
@@ -60,13 +57,14 @@ from eventyay.base.templatetags.rich_text import (
     is_placeholder_html_sample,
     markdown_compile_email,
 )
+from eventyay.common.sanitizers import sanitize_email_html
 from eventyay.control.forms.event import (
     CancelSettingsForm,
     CommentForm,
     EventDeleteForm,
     EventMetaValueForm,
-    GeneralEventSettingsForm,
     EventUpdateForm,
+    GeneralEventSettingsForm,
     InvoiceSettingsForm,
     MailSettingsForm,
     PaymentSettingsForm,
@@ -79,16 +77,15 @@ from eventyay.control.forms.event import (
     TicketSettingsForm,
     WidgetCodeForm,
 )
-from eventyay.orga.forms.theme import EventThemeForm
 from eventyay.control.permissions import EventPermissionRequiredMixin
 from eventyay.control.views.user import RecentAuthenticationRequiredMixin
+from eventyay.eventyay_common.models import EventTheme
 from eventyay.helpers.database import rolledback_transaction
 from eventyay.multidomain.urlreverse import get_event_domain
+from eventyay.orga.forms.theme import EventThemeForm
 from eventyay.presale.style import regenerate_css
+from eventyay.timezones import localize_datetime
 
-from ...base.configurations.lazy_i18n_string_list_base import (
-    LazyI18nStringList,
-)
 from ...base.i18n import language
 from ...base.models.product import (
     Product,
@@ -100,6 +97,7 @@ from ...base.models.product import (
 from ...base.settings import SETTINGS_AFFECTING_CSS
 from ..logdisplay import OVERVIEW_BANLIST
 from . import CreateView, PaginationMixin, UpdateView
+
 
 logger = logging.getLogger(__name__)
 
@@ -1980,8 +1978,6 @@ class EventThemeSettings(EventSettingsViewMixin, FormView):
     def get_form_kwargs(self):
         """Get form kwargs, binding to the event's theme instance."""
         kwargs = super().get_form_kwargs()
-        from eventyay.eventyay_common.models import EventTheme
-
         theme, _ = EventTheme.objects.get_or_create(event=self.request.event)
         kwargs['instance'] = theme
         return kwargs
@@ -1989,8 +1985,6 @@ class EventThemeSettings(EventSettingsViewMixin, FormView):
     def get_context_data(self, **kwargs):
         """Add theme and preview data to context."""
         ctx = super().get_context_data(**kwargs)
-        from eventyay.eventyay_common.models import EventTheme
-
         theme, _ = EventTheme.objects.get_or_create(event=self.request.event)
         ctx['theme'] = theme
         ctx['event_theme_tokens'] = json.dumps(theme.get_effective_tokens())

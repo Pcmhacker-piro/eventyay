@@ -102,9 +102,14 @@ class ThemeManager {
    */
   applyTheme() {
     const root = document.documentElement;
-    const themePath = this.#isDark ? ['darkMode'] : [];
 
-    this.flattenAndApplyTokens(this.#tokens, [], themePath);
+    // Always apply base tokens first
+    this.flattenAndApplyTokens(this.#tokens, [], []);
+
+    // If in dark mode, overlay dark mode token overrides
+    if (this.#isDark && this.#tokens?.darkMode) {
+      this.flattenAndApplyTokens(this.#tokens.darkMode, [], []);
+    }
 
     // Apply theme data attribute for CSS selectors
     root.setAttribute('data-theme', this.#isDark ? 'dark' : 'light');

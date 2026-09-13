@@ -4,6 +4,8 @@ Forms for theme configuration in admin/organizer interfaces.
 Provides user-friendly forms for managing design tokens and theme settings.
 """
 
+import json
+
 from django import forms
 from django.core.exceptions import ValidationError
 from django.utils.translation import gettext_lazy as _
@@ -196,7 +198,6 @@ class TokenImportForm(forms.Form):
         """Validate JSON file format."""
         json_file = self.cleaned_data.get('json_file')
         if json_file:
-            import json
             try:
                 content = json_file.read().decode('utf-8')
                 json.loads(content)
