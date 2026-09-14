@@ -37,3 +37,7 @@ plugins_default = [
     'eventyay.plugins.passbook',
     'hubspot',
 ]
+
+# Development defaults
+npm_dev = true
+plugin_dev_mode = true
