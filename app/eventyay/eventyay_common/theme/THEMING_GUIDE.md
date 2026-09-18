@@ -223,23 +223,23 @@ themeManager.setColorMode(themeManager.isDarkMode() ? 'light' : 'dark');
 ### Organizer Theme
 
 ```
-GET    /api/orga/{organizer_slug}/theme/
-PUT    /api/orga/{organizer_slug}/theme/
-POST   /api/orga/{organizer_slug}/theme/update-token/
-POST   /api/orga/{organizer_slug}/theme/export/
-POST   /api/orga/{organizer_slug}/theme/import/
+GET    /api/v1/organizers/{organizer_slug}/themes/
+PUT    /api/v1/organizers/{organizer_slug}/themes/
+POST   /api/v1/organizers/{organizer_slug}/themes/update-token/
+POST   /api/v1/organizers/{organizer_slug}/themes/export/
+POST   /api/v1/organizers/{organizer_slug}/themes/import/
 ```
 
 ### Event Theme
 
 ```
-GET    /api/orga/{organizer_slug}/events/{event_slug}/theme/
-PUT    /api/orga/{organizer_slug}/events/{event_slug}/theme/
-POST   /api/orga/{organizer_slug}/events/{event_slug}/theme/update-token/
-POST   /api/orga/{organizer_slug}/events/{event_slug}/theme/preview/
-POST   /api/orga/{organizer_slug}/events/{event_slug}/theme/reset/
-POST   /api/orga/{organizer_slug}/events/{event_slug}/theme/export/
-POST   /api/orga/{organizer_slug}/events/{event_slug}/theme/import/
+GET    /api/v1/organizers/{organizer_slug}/events/{event_slug}/theme/
+PUT    /api/v1/organizers/{organizer_slug}/events/{event_slug}/theme/
+POST   /api/v1/organizers/{organizer_slug}/events/{event_slug}/theme/update-token/
+POST   /api/v1/organizers/{organizer_slug}/events/{event_slug}/theme/preview/
+POST   /api/v1/organizers/{organizer_slug}/events/{event_slug}/theme/reset/
+POST   /api/v1/organizers/{organizer_slug}/events/{event_slug}/theme/export/
+POST   /api/v1/organizers/{organizer_slug}/events/{event_slug}/theme/import/
 ```
 
 ## Customization Examples

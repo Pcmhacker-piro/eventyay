@@ -69,14 +69,30 @@ class Command(BaseCommand):
 
         # Initialize organizer themes
         for organizer in Organizer.objects.all():
-            theme, created = OrganizerTheme.objects.get_or_create(organizer=organizer)
-            status = 'created' if created else 'already exists'
+            if force:
+                theme, created = OrganizerTheme.objects.update_or_create(
+                    organizer=organizer,
+                    defaults={'token_overrides': {}, 'color_mode': 'auto'},
+                )
+                status = 'reset' if not created else 'created'
+            else:
+                theme, created = OrganizerTheme.objects.get_or_create(organizer=organizer)
+                status = 'created' if created else 'already exists'
             self.stdout.write(f'OrganizerTheme for {organizer.name}: {status}')
 
         # Initialize event themes
+        from django_scopes import scope
         for event in Event.objects.all():
-            theme, created = EventTheme.objects.get_or_create(event=event)
-            status = 'created' if created else 'already exists'
+            with scope(event=event):
+                if force:
+                    theme, created = EventTheme.objects.update_or_create(
+                        event=event,
+                        defaults={'token_overrides': {}, 'color_mode': 'auto'},
+                    )
+                    status = 'reset' if not created else 'created'
+                else:
+                    theme, created = EventTheme.objects.get_or_create(event=event)
+                    status = 'created' if created else 'already exists'
             self.stdout.write(f'EventTheme for {event.name}: {status}')
 
         self.stdout.write(self.style.SUCCESS('Theme initialization complete'))

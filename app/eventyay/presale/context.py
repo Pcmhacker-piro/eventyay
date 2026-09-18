@@ -141,10 +141,11 @@ def _default_context(request):
             event_theme = EventTheme.objects.filter(event=request.event).first()
             if event_theme:
                 ctx['event_theme'] = event_theme
-                ctx['event_theme_tokens'] = json.dumps(event_theme.get_effective_tokens())
-                ctx['event_theme_color_mode'] = event_theme.color_mode
-                if event_theme.is_active and event_theme.custom_css:
-                    ctx['event_theme_custom_css'] = event_theme.custom_css
+                if event_theme.is_active:
+                    ctx['event_theme_tokens'] = json.dumps(event_theme.get_effective_tokens())
+                    ctx['event_theme_color_mode'] = event_theme.color_mode
+                    if event_theme.custom_css:
+                        ctx['event_theme_custom_css'] = event_theme.custom_css
         except Exception:
             pass
 
@@ -175,7 +176,7 @@ def _default_context(request):
         try:
             from eventyay.eventyay_common.models import OrganizerTheme
             organizer_theme = OrganizerTheme.objects.filter(organizer=request.organizer).first()
-            if organizer_theme:
+            if organizer_theme and organizer_theme.is_active:
                 ctx['organizer_theme'] = organizer_theme
                 ctx['organizer_theme_tokens'] = json.dumps(
                     organizer_theme.get_effective_tokens()

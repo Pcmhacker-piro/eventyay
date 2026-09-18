@@ -10,7 +10,7 @@ the token-based theming system across your application.
 {# Include theme styles and CSS variables #}
 <link rel="stylesheet" href="{% static 'css/theme-tokens.css' %}">
 {% if event_theme_custom_css %}
-  <style id="event-theme-custom-css">{{ event_theme_custom_css|safe }}</style>
+  <style id="event-theme-custom-css">{{ event_theme_custom_css|escape }}</style>
 {% endif %}
 
 {# Theme initialization configuration and external ES module script #}

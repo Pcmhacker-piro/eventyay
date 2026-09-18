@@ -244,7 +244,7 @@ export function useTheme(): ThemeContext {
  */
 export async function loadEventTheme(organizerSlug: string, eventSlug: string): Promise<void> {
   try {
-    const response = await fetch(`/api/orga/${organizerSlug}/events/${eventSlug}/theme/`);
+    const response = await fetch(`/api/v1/organizers/${organizerSlug}/events/${eventSlug}/theme/`);
     if (response.ok) {
       const data = await response.json();
       themeManager.loadTheme(data.tokens || {});

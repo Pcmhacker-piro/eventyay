@@ -144,6 +144,19 @@ class OrganizerTheme(BaseTheme):
     def __str__(self) -> str:
         return f'Theme for {self.organizer.name}'
 
+    def get_effective_tokens(self) -> dict[str, Any]:
+        """Get effective tokens for this organizer.
+
+        Merges base tokens with organizer overrides.
+        """
+        from eventyay.eventyay_common.theme.loader import ThemeTokenLoader
+
+        if not self.is_active:
+            return ThemeTokenLoader.load_base_tokens()
+        return ThemeTokenLoader.get_merged_tokens(
+            base_overrides=self.token_overrides,
+        )
+
 
 class EventTheme(BaseTheme):
     """
@@ -189,16 +202,21 @@ class EventTheme(BaseTheme):
         Get effective tokens for this event.
 
         Merges organizer and event tokens with proper precedence.
+        Returns base tokens when this theme is inactive.
         """
         from eventyay.eventyay_common.theme.loader import ThemeTokenLoader
 
         organizer_overrides = None
         if self.inherit_organizer_theme and hasattr(self.event.organizer, 'theme'):
-            organizer_overrides = self.event.organizer.theme.token_overrides
+            org_theme = self.event.organizer.theme
+            if org_theme.is_active:
+                organizer_overrides = org_theme.token_overrides
+
+        event_overrides = self.token_overrides if self.is_active else None
 
         return ThemeTokenLoader.get_merged_tokens(
             base_overrides=organizer_overrides,
-            event_overrides=self.token_overrides,
+            event_overrides=event_overrides,
         )
 
     def export_as_json(self) -> str:
@@ -214,12 +232,17 @@ class EventTheme(BaseTheme):
         """Import theme configuration from JSON."""
         try:
             data = json.loads(json_data)
+            if not isinstance(data, dict):
+                raise ValidationError(_('Theme import data must be a JSON object'))
             if 'colorMode' in data:
                 self.color_mode = data['colorMode']
             if 'tokens' in data:
+                if not isinstance(data['tokens'], dict):
+                    raise ValidationError(_('Token overrides must be a JSON object'))
                 self.token_overrides = data['tokens']
             if 'customCSS' in data:
                 self.custom_css = data['customCSS']
+            self.full_clean()
             self.save()
         except json.JSONDecodeError as e:
             logger.error('Failed to import theme from JSON: %s', e)

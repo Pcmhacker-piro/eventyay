@@ -170,4 +170,4 @@ class ThemeTokenLoader:
         if event_overrides:
             base_tokens = cls.merge_tokens(base_tokens, event_overrides)
 
-        return cls.resolve_token_references(base_tokens)
+        return cls.resolve_token_references(base_tokens, base_tokens=base_tokens)

@@ -10,7 +10,7 @@ from typing import Any
 from django.shortcuts import get_object_or_404
 from rest_framework import status, viewsets
 from rest_framework.decorators import action
-from rest_framework.permissions import AllowAny
+from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.request import Request
 from rest_framework.response import Response
 
@@ -34,7 +34,13 @@ class OrganizerThemeViewSet(viewsets.ViewSet):
     Provides endpoints for retrieving, updating, and customizing themes
     at the organization scope.
     """
-    permission_classes = [AllowAny]
+    permission_classes = [AllowAny]  # Default for read actions
+
+    def get_permissions(self):
+        """Require authentication for mutation actions."""
+        if self.action in ('update', 'update_token', 'import_theme', 'reset'):
+            return [IsAuthenticated()]
+        return [AllowAny()]
 
     def get_organizer(self, request: Request, organizer_slug: str) -> Organizer:
         """Get organizer or raise 404."""
@@ -190,7 +196,13 @@ class EventThemeViewSet(viewsets.ViewSet):
     at the event scope. Event themes can override organizer themes.
     """
 
-    permission_classes = [AllowAny]  # Allow anonymous access to read themes
+    permission_classes = [AllowAny]  # Default for read actions
+
+    def get_permissions(self):
+        """Require authentication for mutation actions."""
+        if self.action in ('update', 'update_token', 'import_theme', 'reset'):
+            return [IsAuthenticated()]
+        return [AllowAny()]
 
     @staticmethod
     def _slugs_from_kwargs(kwargs: dict[str, Any]) -> tuple[str | None, str | None]:

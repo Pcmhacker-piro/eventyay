@@ -131,7 +131,7 @@ class OrganizerThemeModelTestCase(TestCase):
             )
 
 
-class EventThemeModelTestCase(TestCase)    :
+class EventThemeModelTestCase(TestCase):
     """Test EventTheme model functionality."""
 
     def setUp(self):

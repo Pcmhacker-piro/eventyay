@@ -71,7 +71,7 @@
 
             <div class="mb-4">
               <label for="description" class="form-label">{% trans "Theme Description" %}</label>
-              <textarea class="form-control" id="description" name="description" rows="3" placeholder="{% trans 'Internal notes about this theme configuration...' %}">{{ form.description.value }}</textarea>
+              <textarea class="form-control" id="description" name="description" rows="3" placeholder="{% trans 'Internal notes about this theme configuration...' %}">{{ form.description.value|default_if_none:'' }}</textarea>
               <small class="form-text text-muted">
                 {% trans "Optional internal notes to help you remember why you configured this theme." %}
               </small>
@@ -101,7 +101,7 @@
             <div class="card-body">
               <div class="mb-4">
                 <label for="custom_css" class="form-label">{% trans "Custom CSS" %}</label>
-                <textarea class="form-control font-monospace" id="custom_css" name="custom_css" rows="6" data-editor="css" placeholder="/* Custom CSS rules */&#10;.custom-class { color: red; }">{{ form.custom_css.value }}</textarea>
+                <textarea class="form-control font-monospace" id="custom_css" name="custom_css" rows="6" data-editor="css" placeholder="/* Custom CSS rules */&#10;.custom-class { color: red; }">{{ form.custom_css.value|default_if_none:'' }}</textarea>
                 <small class="form-text text-muted">
                   {% trans "Add custom CSS rules that will be applied to this event." %}
                 </small>

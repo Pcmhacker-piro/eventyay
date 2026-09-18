@@ -7,10 +7,10 @@
     "author": "Eventyay Team"
   },
   "colors": {
-    "primary": "#EB2188",
+    "primary": "#D01A78",
     "primaryLight": "#FF69B4",
     "primaryDark": "#C71769",
-    "secondary": "#3B82F6",
+    "secondary": "#2563EB",
     "secondaryLight": "#60A5FA",
     "secondaryDark": "#1E40AF",
     "surface": "#FFFFFF",
@@ -20,7 +20,7 @@
     "backgroundAlt": "#F9FAFB",
     "text": "#111827",
     "textSecondary": "#6B7280",
-    "textTertiary": "#9CA3AF",
+    "textTertiary": "#6B7280",
     "textInverse": "#FFFFFF",
     "success": "#10B981",
     "successLight": "#A7F3D0",

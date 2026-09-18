@@ -1967,7 +1967,7 @@ class QuickSetupView(FormView):
         )
 
 
-class EventThemeSettings(EventSettingsViewMixin, FormView):
+class EventThemeSettings(EventSettingsViewMixin, EventPermissionRequiredMixin, FormView):
     """View for managing event theme and branding settings."""
 
     model = Event

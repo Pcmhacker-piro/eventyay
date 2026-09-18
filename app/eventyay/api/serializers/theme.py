@@ -46,8 +46,8 @@ class BaseThemeSerializer(serializers.ModelSerializer):
             if isinstance(obj, EventTheme):
                 return obj.get_effective_tokens()
             return ThemeTokenLoader.get_merged_tokens(base_overrides=obj.token_overrides)
-        except Exception:
-            return {}
+        except (ValueError, TypeError, AttributeError):
+            return ThemeTokenLoader.load_base_tokens()
     
     def to_representation(self, instance):
         """Override to ensure color_mode uses camelCase in response."""
