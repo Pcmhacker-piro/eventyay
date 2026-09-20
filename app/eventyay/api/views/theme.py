@@ -8,6 +8,7 @@ import logging
 from typing import Any
 
 from django.shortcuts import get_object_or_404
+from django_scopes import scope
 from rest_framework import status, viewsets
 from rest_framework.decorators import action
 from rest_framework.permissions import AllowAny, IsAuthenticated
@@ -34,6 +35,7 @@ class OrganizerThemeViewSet(viewsets.ViewSet):
     Provides endpoints for retrieving, updating, and customizing themes
     at the organization scope.
     """
+
     permission_classes = [AllowAny]  # Default for read actions
 
     def get_permissions(self):
@@ -155,11 +157,13 @@ class OrganizerThemeViewSet(viewsets.ViewSet):
         organizer = self.get_organizer(request, organizer_slug)
         theme = self.get_theme(organizer)
 
-        return Response({
-            'tokens': theme.token_overrides,
-            'colorMode': theme.color_mode,
-            'description': theme.description,
-        })
+        return Response(
+            {
+                'tokens': theme.token_overrides,
+                'colorMode': theme.color_mode,
+                'description': theme.description,
+            }
+        )
 
     @action(detail=False, methods=['post'], url_path='import')
     def import_theme(self, request: Request, *args, **kwargs) -> Response:
@@ -178,6 +182,8 @@ class OrganizerThemeViewSet(viewsets.ViewSet):
         if serializer.is_valid():
             theme.token_overrides = serializer.validated_data.get('tokens', {})
             theme.color_mode = serializer.validated_data.get('colorMode', 'auto')
+            if 'description' in serializer.validated_data:
+                theme.description = serializer.validated_data['description']
             theme.save()
 
             return Response(
@@ -217,7 +223,8 @@ class EventThemeViewSet(viewsets.ViewSet):
 
     def get_theme(self, event: Event) -> EventTheme:
         """Get or create event theme."""
-        theme, _ = EventTheme.objects.get_or_create(event=event)
+        with scope(event=event):
+            theme, _ = EventTheme.objects.get_or_create(event=event)
         return theme
 
     @staticmethod
@@ -287,13 +294,15 @@ class EventThemeViewSet(viewsets.ViewSet):
         primary = theme.get_primary_color() or tokens.get('colors', {}).get('primary', '#EB2188')
         secondary = theme.get_secondary_color() or tokens.get('colors', {}).get('secondary', '#3B82F6')
 
-        return Response({
-            'tokens': tokens,
-            'isDark': theme.color_mode == 'dark',
-            'colorMode': theme.color_mode,
-            'primaryColor': primary,
-            'secondaryColor': secondary,
-        })
+        return Response(
+            {
+                'tokens': tokens,
+                'isDark': theme.color_mode == 'dark',
+                'colorMode': theme.color_mode,
+                'primaryColor': primary,
+                'secondaryColor': secondary,
+            }
+        )
 
     @action(detail=False, methods=['post'], url_path='update-token')
     def update_token(self, request: Request, *args, **kwargs) -> Response:
@@ -358,12 +367,15 @@ class EventThemeViewSet(viewsets.ViewSet):
         event = self.get_event(organizer_slug, event_slug)
         theme = self.get_theme(event)
 
-        return Response({
-            'name': theme.get_display_name(),
-            'tokens': theme.token_overrides,
-            'colorMode': theme.color_mode,
-            'customCSS': theme.custom_css,
-        })
+        return Response(
+            {
+                'name': theme.get_display_name(),
+                'description': theme.description,
+                'tokens': theme.token_overrides,
+                'colorMode': theme.color_mode,
+                'customCSS': theme.custom_css,
+            }
+        )
 
     @action(detail=False, methods=['post'], url_path='import')
     def import_theme(self, request: Request, *args, **kwargs) -> Response:

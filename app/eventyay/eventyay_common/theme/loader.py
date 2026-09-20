@@ -19,6 +19,7 @@ class ThemeTokenLoader:
     """Load and manage design tokens for theming."""
 
     BASE_TOKENS_PATH = Path(__file__).parent / 'default_tokens.json'
+    OVERRIDES_SCHEMA_PATH = Path(__file__).parent / 'overrides_schema.json'
 
     @classmethod
     def load_base_tokens(cls) -> dict[str, Any]:
@@ -30,6 +31,44 @@ class ThemeTokenLoader:
         except (FileNotFoundError, json.JSONDecodeError) as e:
             logger.error('Failed to load base tokens: %s', e)
             return {}
+
+    @classmethod
+    def load_overrides_schema(cls) -> dict[str, Any]:
+        """Load validation schema for user overrides."""
+        try:
+            with open(cls.OVERRIDES_SCHEMA_PATH) as f:
+                return json.load(f)
+        except (FileNotFoundError, json.JSONDecodeError) as e:
+            logger.error('Failed to load overrides schema: %s', e)
+            return {}
+
+    @classmethod
+    def validate_token_path_value(cls, token_path: str, value: Any) -> None:
+        """
+        Validate a single token path and value against the overrides schema.
+
+        Reconstructs the nested structure for the path and validates it against
+        the schema to enforce type constraints on known token paths while
+        allowing schema-defined additional properties.
+        """
+        import jsonschema
+
+        schema = cls.load_overrides_schema()
+        if not schema:
+            return
+
+        keys = [k for k in token_path.split('.') if k]
+        if not keys:
+            raise ValueError('Invalid token path')
+
+        payload: dict[str, Any] = {}
+        curr = payload
+        for k in keys[:-1]:
+            curr[k] = {}
+            curr = curr[k]
+        curr[keys[-1]] = value
+
+        jsonschema.validate(instance=payload, schema=schema)
 
     @classmethod
     def resolve_token_references(

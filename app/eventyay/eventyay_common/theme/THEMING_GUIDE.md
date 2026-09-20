@@ -236,7 +236,7 @@ POST   /api/v1/organizers/{organizer_slug}/themes/import/
 GET    /api/v1/organizers/{organizer_slug}/events/{event_slug}/theme/
 PUT    /api/v1/organizers/{organizer_slug}/events/{event_slug}/theme/
 POST   /api/v1/organizers/{organizer_slug}/events/{event_slug}/theme/update-token/
-POST   /api/v1/organizers/{organizer_slug}/events/{event_slug}/theme/preview/
+GET    /api/v1/organizers/{organizer_slug}/events/{event_slug}/theme/preview/
 POST   /api/v1/organizers/{organizer_slug}/events/{event_slug}/theme/reset/
 POST   /api/v1/organizers/{organizer_slug}/events/{event_slug}/theme/export/
 POST   /api/v1/organizers/{organizer_slug}/events/{event_slug}/theme/import/
@@ -357,11 +357,11 @@ Override validation ensures:
 
 ## Performance Optimization
 
-### Token Caching
+### Token Resolution
 
-- Base tokens loaded once at startup
-- Merged tokens cached per scope (org/event)
-- Cache invalidated on token updates
+- Base tokens loaded from `default_tokens.json`
+- Overrides merged with proper precedence (base < organizer < event)
+- Direct resolution on demand with fast reference resolution
 
 ### CSS Variable Efficiency
 

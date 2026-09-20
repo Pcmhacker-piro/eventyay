@@ -4,6 +4,7 @@ Tests for the token-based theming system.
 Verifies token loading, merging, and model functionality.
 """
 
+from django.db import IntegrityError
 from django.test import TestCase
 
 from eventyay.base.models import Event, Organizer, User
@@ -124,7 +125,7 @@ class OrganizerThemeModelTestCase(TestCase):
         )
 
         # This should not create a second theme
-        with self.assertRaises(Exception):
+        with self.assertRaises(IntegrityError):
             OrganizerTheme.objects.create(
                 organizer=self.organizer,
                 color_mode='dark',
@@ -291,11 +292,11 @@ class ThemeIntegrationTestCase(TestCase):
 
     def test_theme_with_custom_css(self):
         """Test theme with custom CSS rules."""
-        custom_css = '''
+        custom_css = """
         .event-header {
             background: linear-gradient(135deg, var(--color-primary), var(--color-secondary));
         }
-        '''
+        """
         theme = EventTheme.objects.create(
             event=self.event,
             custom_css=custom_css,
@@ -312,6 +313,7 @@ class ThemeFormsTestCase(TestCase):
         from datetime import timedelta
 
         from django.utils import timezone
+
         self.organizer = Organizer.objects.create(name='Form Org', slug='form-org')
         self.event = Event.objects.create(
             name='Form Event',
@@ -323,6 +325,7 @@ class ThemeFormsTestCase(TestCase):
 
     def test_event_theme_form_valid(self):
         from eventyay.orga.forms.theme import EventThemeForm
+
         form_data = {
             'color_mode': 'dark',
             'primary_color': '#EB2188',
@@ -343,6 +346,7 @@ class ThemeFormsTestCase(TestCase):
 
     def test_event_theme_form_unbalanced_css(self):
         from eventyay.orga.forms.theme import EventThemeForm
+
         form_data = {
             'color_mode': 'light',
             'custom_css': '.btn { color: red;',
@@ -357,6 +361,7 @@ class ThemeFormsTestCase(TestCase):
         from django.core.files.uploadedfile import SimpleUploadedFile
 
         from eventyay.orga.forms.theme import TokenImportForm
+
         valid_json = json.dumps({'colors': {'primary': '#123456'}}).encode('utf-8')
         file = SimpleUploadedFile('theme.json', valid_json, content_type='application/json')
         form = TokenImportForm(data={'override_existing': True}, files={'json_file': file})
@@ -366,6 +371,7 @@ class ThemeFormsTestCase(TestCase):
         from django.core.files.uploadedfile import SimpleUploadedFile
 
         from eventyay.orga.forms.theme import TokenImportForm
+
         invalid_json = b'{not valid json'
         file = SimpleUploadedFile('theme.json', invalid_json, content_type='application/json')
         form = TokenImportForm(data={'override_existing': True}, files={'json_file': file})
@@ -380,6 +386,7 @@ class ThemeAPITestCase(TestCase):
         from datetime import timedelta
 
         from django.utils import timezone
+
         self.organizer = Organizer.objects.create(name='API Org', slug='api-org')
         self.event = Event.objects.create(
             name='API Event',
@@ -394,6 +401,7 @@ class ThemeAPITestCase(TestCase):
         from rest_framework.test import APIRequestFactory
 
         from eventyay.api.views.theme import OrganizerThemeViewSet
+
         factory = APIRequestFactory()
         view = OrganizerThemeViewSet.as_view({'get': 'retrieve'})
         request = factory.get(f'/api/v1/organizers/{self.organizer.slug}/themes/')
@@ -406,6 +414,7 @@ class ThemeAPITestCase(TestCase):
         from rest_framework.test import APIRequestFactory
 
         from eventyay.api.views.theme import EventThemeViewSet
+
         factory = APIRequestFactory()
         view = EventThemeViewSet.as_view({'get': 'retrieve'})
         request = factory.get(f'/api/v1/organizers/{self.organizer.slug}/events/{self.event.slug}/theme/')
@@ -418,6 +427,7 @@ class ThemeAPITestCase(TestCase):
         from rest_framework.test import APIRequestFactory
 
         from eventyay.api.views.theme import EventThemeViewSet
+
         factory = APIRequestFactory()
         view = EventThemeViewSet.as_view({'post': 'export'})
         request = factory.post(f'/api/v1/organizers/{self.organizer.slug}/events/{self.event.slug}/theme/export/')
@@ -435,6 +445,7 @@ class ThemeContextTestCase(TestCase):
         from datetime import timedelta
 
         from django.utils import timezone
+
         self.organizer = Organizer.objects.create(name='Ctx Org', slug='ctx-org')
         self.event = Event.objects.create(
             name='Ctx Event',
@@ -450,6 +461,7 @@ class ThemeContextTestCase(TestCase):
         from django_scopes import scope
 
         from eventyay.presale.context import _default_context
+
         EventTheme.objects.create(
             event=self.event,
             color_mode='dark',
@@ -470,3 +482,97 @@ class ThemeContextTestCase(TestCase):
         self.assertEqual(ctx['event_theme_color_mode'], 'dark')
         self.assertEqual(ctx['event_theme_custom_css'], '.custom { color: red; }')
 
+    def test_inactive_organizer_theme_tokens(self):
+        from eventyay.api.serializers.theme import OrganizerThemeSerializer
+
+        org_theme = OrganizerTheme.objects.create(
+            organizer=self.organizer,
+            is_active=False,
+            token_overrides={'colors': {'primary': '#999999'}},
+        )
+        base_tokens = ThemeTokenLoader.load_base_tokens()
+        self.assertEqual(org_theme.get_effective_tokens(), base_tokens)
+        serializer = OrganizerThemeSerializer(org_theme)
+        self.assertEqual(serializer.data['tokens'], base_tokens)
+
+    def test_inactive_event_theme_tokens_excludes_organizer(self):
+        from django_scopes import scope
+
+        OrganizerTheme.objects.create(
+            organizer=self.organizer,
+            is_active=True,
+            token_overrides={'colors': {'primary': '#999999'}},
+        )
+        with scope(event=self.event):
+            event_theme = EventTheme.objects.create(
+                event=self.event,
+                is_active=False,
+                inherit_organizer_theme=True,
+                token_overrides={'colors': {'primary': '#888888'}},
+            )
+            base_tokens = ThemeTokenLoader.load_base_tokens()
+            self.assertEqual(event_theme.get_effective_tokens(), base_tokens)
+
+
+class ThemeValidationAndSerializationTestCase(TestCase):
+    """Test token update validation and theme serialization/filters."""
+
+    def test_token_update_serializer_validation(self):
+        from eventyay.api.serializers.theme import ThemeTokenUpdateSerializer
+
+        # Valid hex color
+        s = ThemeTokenUpdateSerializer(data={'token_path': 'colors.primary', 'value': '#123456'})
+        self.assertTrue(s.is_valid(), s.errors)
+
+        # Invalid color (array)
+        s = ThemeTokenUpdateSerializer(data={'token_path': 'colors.primary', 'value': ['#123456']})
+        self.assertFalse(s.is_valid())
+        self.assertIn('value', s.errors)
+
+        # Invalid color (non-color string)
+        s = ThemeTokenUpdateSerializer(data={'token_path': 'colors.primary', 'value': 'not-a-color'})
+        self.assertFalse(s.is_valid())
+        self.assertIn('value', s.errors)
+
+        # Valid typography font size
+        s = ThemeTokenUpdateSerializer(data={'token_path': 'typography.fontSize.base', 'value': '16px'})
+        self.assertTrue(s.is_valid(), s.errors)
+
+        # Invalid typography font size (number without unit)
+        s = ThemeTokenUpdateSerializer(data={'token_path': 'typography.fontSize.base', 'value': 16})
+        self.assertFalse(s.is_valid())
+
+        # Valid additional property
+        s = ThemeTokenUpdateSerializer(data={'token_path': 'custom.myToken', 'value': 'anything'})
+        self.assertTrue(s.is_valid(), s.errors)
+
+    def test_export_serializer_description(self):
+        from eventyay.api.serializers.theme import ThemeExportSerializer
+
+        data = {
+            'name': 'My Theme',
+            'description': 'Organizer theme notes',
+            'colorMode': 'dark',
+            'tokens': {'colors': {'primary': '#123456'}},
+            'customCSS': 'body { margin: 0; }',
+        }
+        s = ThemeExportSerializer(data=data)
+        self.assertTrue(s.is_valid(), s.errors)
+        self.assertEqual(s.validated_data['description'], 'Organizer theme notes')
+
+    def test_escape_style_filter(self):
+        from eventyay.eventyay_common.templatetags.theme_tags import escape_style
+
+        # Normal valid CSS is preserved
+        css = 'div > p { font-family: "Open Sans"; color: red & blue; }'
+        self.assertEqual(str(escape_style(css)), css)
+
+        # Dangerous </style> sequence is neutralized case-insensitively
+        malicious = '}</style><script>alert(1)</script>'
+        sanitized = str(escape_style(malicious))
+        self.assertNotIn('</style>', sanitized.lower())
+        self.assertIn('\\3c /style', sanitized)
+
+        malicious_upper = '}</STYLE ><script>alert(1)</script>'
+        sanitized_upper = str(escape_style(malicious_upper))
+        self.assertNotIn('</style', sanitized_upper.lower())

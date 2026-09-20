@@ -10,6 +10,7 @@ class ThemeManager {
   #isDark = false;
   #storageKey = 'eventyay-theme-mode';
   #tokenPrefix = '--';
+  #appliedVariables = new Set();
 
   static #instance = null;
 
@@ -103,6 +104,12 @@ class ThemeManager {
   applyTheme() {
     const root = document.documentElement;
 
+    // Clear previously applied CSS variables
+    for (const prop of this.#appliedVariables) {
+      root.style.removeProperty(prop);
+    }
+    this.#appliedVariables.clear();
+
     // Always apply base tokens first
     this.flattenAndApplyTokens(this.#tokens, [], []);
 
@@ -144,8 +151,10 @@ class ThemeManager {
         const legacyVarName = `${this.#tokenPrefix}${path.join('-')}`;
         const normalizedVarName = this.getNormalizedVarName(path);
         root.style.setProperty(legacyVarName, String(value));
+        this.#appliedVariables.add(legacyVarName);
         if (normalizedVarName !== legacyVarName) {
           root.style.setProperty(normalizedVarName, String(value));
+          this.#appliedVariables.add(normalizedVarName);
         }
       }
     }
@@ -179,8 +188,10 @@ class ThemeManager {
     const varName = `${this.#tokenPrefix}${path.replace(/\./g, '-')}`;
     const normalizedVarName = this.getNormalizedVarName(tokenPath);
     root.style.setProperty(varName, value);
+    this.#appliedVariables.add(varName);
     if (normalizedVarName !== varName) {
       root.style.setProperty(normalizedVarName, value);
+      this.#appliedVariables.add(normalizedVarName);
     }
 
     // Update internal tokens object
@@ -226,6 +237,12 @@ class ThemeManager {
    * Reset theme to defaults
    */
   reset() {
+    const root = document.documentElement;
+    for (const prop of this.#appliedVariables) {
+      root.style.removeProperty(prop);
+    }
+    this.#appliedVariables.clear();
+
     this.#colorMode = 'auto';
     localStorage.removeItem(this.#storageKey);
     this.#tokens = {};
@@ -262,6 +279,11 @@ export async function loadEventTheme(organizerSlug, eventSlug) {
     const data = await response.json();
     console.log('Theme data received:', data);
     
+    if (data.isActive === false || data.is_active === false) {
+      themeManager.reset();
+      return true;
+    }
+
     // Load tokens from the API response
     const tokens = data.tokens || {};
     if (Object.keys(tokens).length > 0) {
@@ -325,6 +347,11 @@ export async function loadOrganizerTheme(organizerSlug) {
 
     const data = await response.json();
     console.log('Organizer theme data received:', data);
+
+    if (data.isActive === false || data.is_active === false) {
+      themeManager.reset();
+      return true;
+    }
 
     const tokens = data.tokens || {};
     if (Object.keys(tokens).length > 0) {

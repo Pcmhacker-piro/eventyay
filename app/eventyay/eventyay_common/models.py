@@ -34,6 +34,7 @@ class BaseTheme(LoggedModel, TimestampedModel, models.Model):
 
     class ColorMode(models.TextChoices):
         """Color mode options."""
+
         LIGHT = 'light', _('Light Mode')
         DARK = 'dark', _('Dark Mode')
         AUTO = 'auto', _('Auto (System Preference)')
@@ -96,6 +97,14 @@ class BaseTheme(LoggedModel, TimestampedModel, models.Model):
         self.token_overrides = {}
         self.save(update_fields=['token_overrides'])
 
+    def reset_to_defaults(self) -> None:
+        """Reset theme to model defaults."""
+        self.token_overrides = {}
+        self.color_mode = self.ColorMode.AUTO
+        self.is_active = True
+        self.description = ''
+        self.save()
+
     def update_color(self, color_key: str, hex_value: str) -> None:
         """Update a specific color token."""
         if 'colors' not in self.token_overrides:
@@ -143,6 +152,16 @@ class OrganizerTheme(BaseTheme):
 
     def __str__(self) -> str:
         return f'Theme for {self.organizer.name}'
+
+    def reset_to_defaults(self) -> None:
+        """Reset theme to model defaults."""
+        self.token_overrides = {}
+        self.color_mode = self.ColorMode.AUTO
+        self.is_active = True
+        self.description = ''
+        self.logo_url = ''
+        self.favicon_url = ''
+        self.save()
 
     def get_effective_tokens(self) -> dict[str, Any]:
         """Get effective tokens for this organizer.
@@ -197,6 +216,16 @@ class EventTheme(BaseTheme):
     def __str__(self) -> str:
         return f'Theme for {self.event.name}'
 
+    def reset_to_defaults(self) -> None:
+        """Reset theme to model defaults."""
+        self.token_overrides = {}
+        self.color_mode = self.ColorMode.AUTO
+        self.is_active = True
+        self.description = ''
+        self.inherit_organizer_theme = True
+        self.custom_css = ''
+        self.save()
+
     def get_effective_tokens(self) -> dict[str, Any]:
         """
         Get effective tokens for this event.
@@ -206,27 +235,32 @@ class EventTheme(BaseTheme):
         """
         from eventyay.eventyay_common.theme.loader import ThemeTokenLoader
 
+        if not self.is_active:
+            return ThemeTokenLoader.load_base_tokens()
+
         organizer_overrides = None
         if self.inherit_organizer_theme and hasattr(self.event.organizer, 'theme'):
             org_theme = self.event.organizer.theme
             if org_theme.is_active:
                 organizer_overrides = org_theme.token_overrides
 
-        event_overrides = self.token_overrides if self.is_active else None
-
         return ThemeTokenLoader.get_merged_tokens(
             base_overrides=organizer_overrides,
-            event_overrides=event_overrides,
+            event_overrides=self.token_overrides,
         )
 
     def export_as_json(self) -> str:
         """Export theme configuration as JSON."""
-        return json.dumps({
-            'name': self.get_display_name(),
-            'colorMode': self.color_mode,
-            'tokens': self.token_overrides,
-            'customCSS': self.custom_css,
-        }, indent=2)
+        return json.dumps(
+            {
+                'name': self.get_display_name(),
+                'description': self.description,
+                'colorMode': self.color_mode,
+                'tokens': self.token_overrides,
+                'customCSS': self.custom_css,
+            },
+            indent=2,
+        )
 
     def import_from_json(self, json_data: str) -> None:
         """Import theme configuration from JSON."""
@@ -236,6 +270,8 @@ class EventTheme(BaseTheme):
                 raise ValidationError(_('Theme import data must be a JSON object'))
             if 'colorMode' in data:
                 self.color_mode = data['colorMode']
+            if 'description' in data:
+                self.description = data['description']
             if 'tokens' in data:
                 if not isinstance(data['tokens'], dict):
                     raise ValidationError(_('Token overrides must be a JSON object'))

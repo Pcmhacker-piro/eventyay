@@ -34,6 +34,7 @@ class ThemeManager {
   private isDark = false;
   private storageKey = 'eventyay-theme-mode';
   private tokenPrefix = '--';
+  private appliedVariables: Set<string> = new Set();
 
   private constructor() {
     this.initializeColorMode();
@@ -45,6 +46,22 @@ class ThemeManager {
       ThemeManager.instance = new ThemeManager();
     }
     return ThemeManager.instance;
+  }
+
+  private toKebabCase(segment: string): string {
+    return String(segment).replace(/([a-z0-9])([A-Z])/g, '$1-$2').toLowerCase();
+  }
+
+  private getNormalizedVarName(path: string[]): string {
+    if (!path.length) {
+      return this.tokenPrefix;
+    }
+    if (path[0] === 'colors' && path.length > 1) {
+      const rest = path.slice(1).map((s) => this.toKebabCase(s)).join('-');
+      return `${this.tokenPrefix}color-${rest}`;
+    }
+    const normalizedPath = path.map((s) => this.toKebabCase(s)).join('-');
+    return `${this.tokenPrefix}${normalizedPath}`;
   }
 
   /**
@@ -124,6 +141,13 @@ class ThemeManager {
    */
   private applyTheme(): void {
     const root = document.documentElement;
+
+    // Clear previously applied CSS variables
+    for (const prop of this.appliedVariables) {
+      root.style.removeProperty(prop);
+    }
+    this.appliedVariables.clear();
+
     const themePath = this.isDark ? ['darkMode'] : [];
 
     this.flattenAndApplyTokens(this.tokens, [], themePath);
@@ -161,9 +185,15 @@ class ThemeManager {
         // Recurse for nested objects
         this.flattenAndApplyTokens(value, path, []);
       } else if (typeof value === 'string' || typeof value === 'number') {
-        // Apply as CSS variable
-        const varName = `${this.tokenPrefix}${path.join('-')}`;
-        root.style.setProperty(varName, String(value));
+        // Apply both legacy and normalized variable names
+        const legacyVarName = `${this.tokenPrefix}${path.join('-')}`;
+        const normalizedVarName = this.getNormalizedVarName(path);
+        root.style.setProperty(legacyVarName, String(value));
+        this.appliedVariables.add(legacyVarName);
+        if (normalizedVarName !== legacyVarName) {
+          root.style.setProperty(normalizedVarName, String(value));
+          this.appliedVariables.add(normalizedVarName);
+        }
       }
     }
   }
@@ -173,8 +203,15 @@ class ThemeManager {
    */
   updateToken(path: string, value: string): void {
     const root = document.documentElement;
+    const tokenPath = path.split('.');
     const varName = `${this.tokenPrefix}${path.replace(/\./g, '-')}`;
+    const normalizedVarName = this.getNormalizedVarName(tokenPath);
     root.style.setProperty(varName, value);
+    this.appliedVariables.add(varName);
+    if (normalizedVarName !== varName) {
+      root.style.setProperty(normalizedVarName, value);
+      this.appliedVariables.add(normalizedVarName);
+    }
 
     // Update internal tokens object
     const keys = path.split('.');
@@ -219,6 +256,12 @@ class ThemeManager {
    * Reset theme to defaults
    */
   reset(): void {
+    const root = document.documentElement;
+    for (const prop of this.appliedVariables) {
+      root.style.removeProperty(prop);
+    }
+    this.appliedVariables.clear();
+
     this.colorMode = 'auto';
     localStorage.removeItem(this.storageKey);
     this.tokens = {};
@@ -247,6 +290,10 @@ export async function loadEventTheme(organizerSlug: string, eventSlug: string): 
     const response = await fetch(`/api/v1/organizers/${organizerSlug}/events/${eventSlug}/theme/`);
     if (response.ok) {
       const data = await response.json();
+      if (data.isActive === false || data.is_active === false) {
+        themeManager.reset();
+        return;
+      }
       themeManager.loadTheme(data.tokens || {});
       if (data.colorMode) {
         themeManager.setColorMode(data.colorMode);
@@ -254,6 +301,28 @@ export async function loadEventTheme(organizerSlug: string, eventSlug: string): 
     }
   } catch (error) {
     console.error('Failed to load event theme:', error);
+  }
+}
+
+/**
+ * Fetch and load theme for a specific organizer
+ */
+export async function loadOrganizerTheme(organizerSlug: string): Promise<void> {
+  try {
+    const response = await fetch(`/api/v1/organizers/${organizerSlug}/themes/`);
+    if (response.ok) {
+      const data = await response.json();
+      if (data.isActive === false || data.is_active === false) {
+        themeManager.reset();
+        return;
+      }
+      themeManager.loadTheme(data.tokens || {});
+      if (data.colorMode) {
+        themeManager.setColorMode(data.colorMode);
+      }
+    }
+  } catch (error) {
+    console.error('Failed to load organizer theme:', error);
   }
 }
 

@@ -45,6 +45,8 @@ class BaseThemeSerializer(serializers.ModelSerializer):
         try:
             if isinstance(obj, EventTheme):
                 return obj.get_effective_tokens()
+            if not getattr(obj, 'is_active', True):
+                return ThemeTokenLoader.load_base_tokens()
             return ThemeTokenLoader.get_merged_tokens(base_overrides=obj.token_overrides)
         except (ValueError, TypeError, AttributeError):
             return ThemeTokenLoader.load_base_tokens()
@@ -113,17 +115,33 @@ class ThemeTokenUpdateSerializer(serializers.Serializer):
     class Meta:
         fields = ['token_path', 'value', 'color_mode']
 
+    def validate(self, attrs):
+        attrs = super().validate(attrs)
+        token_path = attrs.get('token_path')
+        value = attrs.get('value')
+        if token_path is not None:
+            try:
+                ThemeTokenLoader.validate_token_path_value(token_path, value)
+            except Exception as e:
+                import jsonschema
+
+                if isinstance(e, (jsonschema.ValidationError, ValueError)):
+                    raise serializers.ValidationError({'value': f'Invalid value for token path "{token_path}": {e}'})
+                raise
+        return attrs
+
 
 class ThemeExportSerializer(serializers.Serializer):
     """Serializer for exporting/importing theme configuration."""
 
     name = serializers.CharField(max_length=255, required=False)
+    description = serializers.CharField(required=False, allow_blank=True)
     colorMode = serializers.ChoiceField(choices=['light', 'dark', 'auto'])
     tokens = serializers.JSONField()
     customCSS = serializers.CharField(required=False, allow_blank=True)
 
     class Meta:
-        fields = ['name', 'colorMode', 'tokens', 'customCSS']
+        fields = ['name', 'description', 'colorMode', 'tokens', 'customCSS']
 
 
 class ThemePreviewSerializer(serializers.Serializer):

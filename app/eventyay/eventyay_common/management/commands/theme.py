@@ -6,6 +6,7 @@ Provides utilities for initializing, validating, and managing themes.
 
 from django.core.management.base import BaseCommand, CommandError
 from django.utils.translation import gettext_lazy as _
+from django_scopes import scope
 
 from eventyay.base.models import Event, Organizer
 from eventyay.eventyay_common.models import EventTheme, OrganizerTheme
@@ -81,7 +82,6 @@ class Command(BaseCommand):
             self.stdout.write(f'OrganizerTheme for {organizer.name}: {status}')
 
         # Initialize event themes
-        from django_scopes import scope
         for event in Event.objects.all():
             with scope(event=event):
                 if force:
@@ -106,7 +106,8 @@ class Command(BaseCommand):
             if event_slug and organizer_slug:
                 organizer = Organizer.objects.get(slug=organizer_slug)
                 event = Event.objects.get(slug=event_slug, organizer=organizer)
-                theme = EventTheme.objects.get(event=event)
+                with scope(event=event):
+                    theme = EventTheme.objects.get(event=event)
                 self.stdout.write(f'Validating EventTheme for {event.name}')
             elif organizer_slug:
                 organizer = Organizer.objects.get(slug=organizer_slug)
@@ -115,10 +116,19 @@ class Command(BaseCommand):
             else:
                 raise CommandError('Provide --organizer and optionally --event')
 
+            # Validate overrides against schema if present
+            if theme.token_overrides:
+                import jsonschema
+
+                schema = ThemeTokenLoader.load_overrides_schema()
+                if schema:
+                    try:
+                        jsonschema.validate(instance=theme.token_overrides, schema=schema)
+                    except jsonschema.ValidationError as e:
+                        raise CommandError(f'Invalid token overrides: {e.message}')
+
             # Validate overrides by attempting to merge
-            merged = ThemeTokenLoader.get_merged_tokens(
-                base_overrides=theme.token_overrides
-            )
+            merged = ThemeTokenLoader.get_merged_tokens(base_overrides=theme.token_overrides)
 
             self.stdout.write(self.style.SUCCESS('✓ Theme validation passed'))
             self.stdout.write(f'Tokens count: {len(self._flatten(merged))}')
@@ -133,21 +143,28 @@ class Command(BaseCommand):
         reset_all = options.get('all', False)
 
         if reset_all:
-            count_org = OrganizerTheme.objects.update(token_overrides={})
-            count_event = EventTheme.objects.update(token_overrides={})
-            self.stdout.write(self.style.SUCCESS(
-                f'Reset {count_org} organizer themes and {count_event} event themes'
-            ))
+            count_org = 0
+            for org_theme in OrganizerTheme.objects.all():
+                org_theme.reset_to_defaults()
+                count_org += 1
+            count_event = 0
+            for event in Event.objects.all():
+                with scope(event=event):
+                    for event_theme in EventTheme.objects.filter(event=event):
+                        event_theme.reset_to_defaults()
+                        count_event += 1
+            self.stdout.write(self.style.SUCCESS(f'Reset {count_org} organizer themes and {count_event} event themes'))
         elif event_slug and organizer_slug:
             organizer = Organizer.objects.get(slug=organizer_slug)
             event = Event.objects.get(slug=event_slug, organizer=organizer)
-            theme = EventTheme.objects.get(event=event)
-            theme.clear_overrides()
+            with scope(event=event):
+                theme = EventTheme.objects.get(event=event)
+                theme.reset_to_defaults()
             self.stdout.write(self.style.SUCCESS(f'Reset EventTheme for {event.name}'))
         elif organizer_slug:
             organizer = Organizer.objects.get(slug=organizer_slug)
             theme = OrganizerTheme.objects.get(organizer=organizer)
-            theme.clear_overrides()
+            theme.reset_to_defaults()
             self.stdout.write(self.style.SUCCESS(f'Reset OrganizerTheme for {organizer.name}'))
         else:
             raise CommandError('Provide --all, or --organizer with optionally --event')
@@ -162,8 +179,9 @@ class Command(BaseCommand):
             if event_slug and organizer_slug:
                 organizer = Organizer.objects.get(slug=organizer_slug)
                 event = Event.objects.get(slug=event_slug, organizer=organizer)
-                theme = EventTheme.objects.get(event=event)
-                tokens = theme.get_effective_tokens()
+                with scope(event=event):
+                    theme = EventTheme.objects.get(event=event)
+                    tokens = theme.get_effective_tokens()
                 name = f'EventTheme: {event.name}'
             elif organizer_slug:
                 organizer = Organizer.objects.get(slug=organizer_slug)
@@ -176,6 +194,7 @@ class Command(BaseCommand):
                 name = 'Base Tokens'
 
             import json
+
             with open(output_file, 'w') as f:
                 json.dump({'name': name, 'tokens': tokens}, f, indent=2)
 
@@ -197,12 +216,12 @@ class Command(BaseCommand):
 
         if theme_type in (None, 'event'):
             self.stdout.write(self.style.HTTP_INFO('\n=== Event Themes ==='))
-            for theme in EventTheme.objects.select_related('event', 'event__organizer'):
-                status = '✓' if theme.is_active else '✗'
-                colors = theme.get_primary_color() or 'not set'
-                self.stdout.write(
-                    f'{status} {theme.event.organizer.name} / {theme.event.name}: primary={colors}'
-                )
+            for event in Event.objects.select_related('organizer'):
+                with scope(event=event):
+                    for theme in EventTheme.objects.filter(event=event):
+                        status = '✓' if theme.is_active else '✗'
+                        colors = theme.get_primary_color() or 'not set'
+                        self.stdout.write(f'{status} {event.organizer.name} / {event.name}: primary={colors}')
 
     @staticmethod
     def _flatten(d, parent_key='', sep='.'):
