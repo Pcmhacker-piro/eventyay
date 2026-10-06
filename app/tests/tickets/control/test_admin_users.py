@@ -140,6 +140,34 @@ class UserFilterFormTest(TestCase):
         qs = self._filter({})
         self.assertGreaterEqual(qs.count(), 4)
 
+    def test_filter_ordering_date_joined(self):
+        qs_asc = self._filter({'ordering': 'date_joined'})
+        dates_asc = list(qs_asc.values_list('date_joined', flat=True))
+        self.assertEqual(dates_asc, sorted(dates_asc))
+
+        qs_desc = self._filter({'ordering': '-date_joined'})
+        dates_desc = list(qs_desc.values_list('date_joined', flat=True))
+        self.assertEqual(dates_desc, sorted(dates_desc, reverse=True))
+
+    def test_filter_ordering_last_login(self):
+        from django.utils import timezone
+        import datetime
+        u1 = _make_user('ll1@ex.com')
+        u1.last_login = timezone.now() - datetime.timedelta(days=1)
+        u1.save()
+        u2 = _make_user('ll2@ex.com')
+        u2.last_login = timezone.now()
+        u2.save()
+
+        qs_asc = self._filter({'ordering': 'last_login'})
+        # u1, u2 have dates, others are None; nulls_last means u1 then u2 then None
+        non_null_asc = [d for d in qs_asc.values_list('last_login', flat=True) if d is not None]
+        self.assertEqual(non_null_asc, sorted(non_null_asc))
+
+        qs_desc = self._filter({'ordering': '-last_login'})
+        non_null_desc = [d for d in qs_desc.values_list('last_login', flat=True) if d is not None]
+        self.assertEqual(non_null_desc, sorted(non_null_desc, reverse=True))
+
 
 class AdminUserListViewTest(TestCase):
 
@@ -168,6 +196,10 @@ class AdminUserListViewTest(TestCase):
         content = response.content.decode()
         self.assertIn('Member Since', content)
         self.assertIn('Last Accessed', content)
+        self.assertIn('ordering=-date_joined', content)
+        self.assertIn('ordering=date_joined', content)
+        self.assertIn('ordering=-last_login', content)
+        self.assertIn('ordering=last_login', content)
         self.assertIn('Verified', content)
         self.assertIn('Mark as Spam', content)
         self.assertIn('name="action" value="toggle_verified"', content)

@@ -1530,6 +1530,9 @@ class UserFilterForm(FilterForm):
         'verified': 'is_email_verified',
         'admin': 'is_staff',
         'spam': 'is_spam',
+        'date_joined': 'date_joined',
+        'last_login': F('last_login').asc(nulls_last=True),
+        '-last_login': F('last_login').desc(nulls_last=True),
     }
     status = forms.ChoiceField(
         label=_('Status'),
