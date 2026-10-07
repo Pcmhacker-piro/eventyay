@@ -388,8 +388,8 @@ class ScheduleView(PermissionRequired, ScheduleMixin, TemplateView):
         return ctx
 
 
-@vary_on_headers('Accept-Language', 'Cookie')
 @cache_page(60 * 60 * 24, key_prefix='schedule-messages-v10')
+@vary_on_headers('Accept-Language', 'Cookie')
 def schedule_messages(request, **kwargs):
     """Cached for static exports; bump key_prefix when message keys or copy change."""
     strings = {

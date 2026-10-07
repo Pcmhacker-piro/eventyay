@@ -1,8 +1,12 @@
+import json
 from types import SimpleNamespace
 
 import pytest
+from django.core.cache import cache
+from django.utils import translation
 from django_scopes import scope
 
+from eventyay.agenda.views.schedule import schedule_messages
 from eventyay.agenda.views.widget import color_etag, event_css
 
 
@@ -244,34 +248,33 @@ def test_event_css_etag_returns_none_string_when_no_colors_are_set(rf):
 
 
 def test_schedule_messages_caches_per_language(rf):
-    import json
-    from django.core.cache import cache
-    from django.utils import translation
-    from eventyay.agenda.views.schedule import schedule_messages
-
     cache.clear()
+    try:
+        # 1. Chinese request
+        with translation.override('zh-hans'):
+            req_zh = rf.get('/widget/messages.js', HTTP_ACCEPT_LANGUAGE='zh-CN,zh;q=0.9')
+            res_zh = schedule_messages(req_zh)
+            assert res_zh.status_code == 200
+            assert 'Accept-Language' in res_zh.get('Vary', '')
+            assert 'Cookie' in res_zh.get('Vary', '')
+            data_zh = json.loads(
+                res_zh.content.decode().replace('const PRETALX_MESSAGES = ', '').rstrip(';')
+            )
+            assert data_zh['search'] == '搜索'
+            assert data_zh['yes'] == '是'
 
-    # 1. Chinese request
-    with translation.override('zh-hans'):
-        req_zh = rf.get('/widget/messages.js', HTTP_ACCEPT_LANGUAGE='zh-CN,zh;q=0.9')
-        res_zh = schedule_messages(req_zh)
-        assert res_zh.status_code == 200
-        assert 'Accept-Language' in res_zh.get('Vary', '')
-        data_zh = json.loads(
-            res_zh.content.decode().replace('const PRETALX_MESSAGES = ', '').rstrip(';')
-        )
-        assert data_zh['search'] == '搜索'
-        assert data_zh['yes'] == '是'
-
-    # 2. English request - must get English, not Chinese cached response
-    with translation.override('en'):
-        req_en = rf.get('/widget/messages.js', HTTP_ACCEPT_LANGUAGE='en-US,en;q=0.9')
-        res_en = schedule_messages(req_en)
-        assert res_en.status_code == 200
-        assert 'Accept-Language' in res_en.get('Vary', '')
-        data_en = json.loads(
-            res_en.content.decode().replace('const PRETALX_MESSAGES = ', '').rstrip(';')
-        )
-        assert data_en['search'] == 'Search'
-        assert data_en['yes'] == 'Yes'
+        # 2. English request - must get English, not Chinese cached response
+        with translation.override('en'):
+            req_en = rf.get('/widget/messages.js', HTTP_ACCEPT_LANGUAGE='en-US,en;q=0.9')
+            res_en = schedule_messages(req_en)
+            assert res_en.status_code == 200
+            assert 'Accept-Language' in res_en.get('Vary', '')
+            assert 'Cookie' in res_en.get('Vary', '')
+            data_en = json.loads(
+                res_en.content.decode().replace('const PRETALX_MESSAGES = ', '').rstrip(';')
+            )
+            assert data_en['search'] == 'Search'
+            assert data_en['yes'] == 'Yes'
+    finally:
+        cache.clear()
 
