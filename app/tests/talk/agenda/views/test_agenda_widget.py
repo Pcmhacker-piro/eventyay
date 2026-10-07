@@ -3,9 +3,11 @@ from types import SimpleNamespace
 
 import pytest
 from django.core.cache import cache
+from django.template.loader import render_to_string
 from django.utils import translation
 from django_scopes import scope
 
+from eventyay.agenda.management.commands.export_schedule_html import event_urls
 from eventyay.agenda.views.schedule import schedule_messages
 from eventyay.agenda.views.widget import color_etag, event_css
 
@@ -277,4 +279,41 @@ def test_schedule_messages_caches_per_language(rf):
             assert data_en['yes'] == 'Yes'
     finally:
         cache.clear()
+
+
+def test_pretalx_messages_script_tag_includes_version():
+    request = SimpleNamespace(
+        user=SimpleNamespace(is_anonymous=True, is_authenticated=False),
+        event=SimpleNamespace(urls=SimpleNamespace(schedule='https://example.com/schedule/')),
+    )
+    rendered = render_to_string('agenda/includes/pretalx_messages_script.html', {'request': request})
+    assert 'widget/messages.js?v=10' in rendered
+
+
+def test_export_schedule_html_event_urls_includes_versioned_messages_js(mocker):
+    fake_urls = SimpleNamespace(
+        base='https://test/base/',
+        schedule='https://test/schedule/',
+        schedule_nojs='https://test/schedule/nojs/',
+        schedule_widget_data='https://test/schedule/widget/data/',
+        featured='https://test/schedule/featured/',
+        talks='https://test/schedule/talks/',
+        speakers='https://test/schedule/speakers/',
+        changelog='https://test/schedule/changelog/',
+        feed='https://test/schedule/feed/',
+    )
+    fake_event = SimpleNamespace(
+        urls=fake_urls,
+        schedules=mocker.MagicMock(filter=mocker.MagicMock(return_value=[])),
+        talks=[],
+        speakers=[],
+    )
+    mocker.patch(
+        'eventyay.agenda.management.commands.export_schedule_html.register_data_exporters.send',
+        return_value=[],
+    )
+
+    urls = list(event_urls(fake_event))
+    assert 'https://test/schedule/widget/messages.js?v=10' in urls
+
 
