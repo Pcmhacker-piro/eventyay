@@ -1,3 +1,4 @@
+from django_scopes import scope
 import json
 from collections import Counter
 from dataclasses import replace
@@ -77,6 +78,7 @@ from eventyay.orga.forms.submission import (
     SubmissionForm,
     SubmissionStateChangeForm,
 )
+from eventyay.orga.templatetags.staff_session import has_event_perm
 from eventyay.orga.utils.speakers import (
     get_submission_answers,
     get_submission_speakers,
@@ -390,7 +392,6 @@ class SubmissionSpeakers(ReviewerSubmissionFilter, SubmissionViewMixin, FormView
         kwargs = super().get_form_kwargs()
         kwargs['event'] = self.request.event
         kwargs['require_name'] = True
-        kwargs['include_biography'] = True
         kwargs['submission'] = self.object
         return kwargs
 
@@ -410,14 +411,14 @@ class SubmissionSpeakerResendInvitation(SubmissionSpeakers):
             submission=self.object,
             pk=self.kwargs['pk'],
         )
-        if not invitation.can_resend:
+        if not invitation.can_resend_orga:
             message = _('This invitation cannot be resent.')
             if is_ajax_request(request):
                 return JsonResponse({'message': str(message), 'success': False}, status=409)
             messages.warning(request, message)
             return redirect(self.object.orga_urls.speakers)
 
-        delivered = invitation.resend(requestor=request.user)
+        delivered = invitation.resend(requestor=request.user, orga=True)
         if delivered:
             message = _('Invitation sent to {email}.').format(email=invitation.email)
         else:
@@ -771,6 +772,22 @@ class SubmissionContentView(SubmissionContent):
             )
         return tags
 
+    @context
+    @cached_property
+    def scheduled_slot(self):
+        submission = self.get_object()
+        if not isinstance(submission, Submission) or not submission.pk:
+            return None
+        return (
+            submission.slots.filter(
+                schedule__version__isnull=True,
+                start__isnull=False,
+            )
+            .select_related('room')
+            .order_by('start')
+            .first()
+        )
+
 
 class BaseSubmissionList(Sortable, ReviewerSubmissionFilter, PaginationMixin, ListView):
     model = Submission
@@ -835,15 +852,47 @@ class SubmissionList(EventPermissionRequired, BaseSubmissionList):
         return self.get_queryset().filter(pending_state__isnull=False).count()
 
     @context
+    @cached_property
     def show_tracks(self):
-        if self.request.event.get_feature_flag('use_tracks'):
+        with scope(event=self.request.event):
             if self.limit_tracks:
                 return len(self.limit_tracks) > 1
-            return self.request.event.tracks.all().count() > 1
+            return self.request.event.tracks.count() > 1
 
     @context
     def session_videos_enabled(self):
         return event_session_videos_enabled(self.request.event)
+
+    @context
+    def submission_colspan(self):
+        can_change_submission = has_event_perm(
+            'base.state_change_submission',
+            self.request.user,
+            self.request,
+            self.request.event,
+        )
+        can_view_speakers = has_event_perm(
+            'base.orga_list_speakerprofile',
+            self.request.user,
+            self.request,
+            self.request.event,
+        )
+        show_submission_types = bool(self.show_submission_types())
+        use_tracks = bool(self.request.event.get_feature_flag('use_tracks'))
+        session_videos_enabled = bool(self.session_videos_enabled())
+
+        colspan = 2  # Title and State columns are always present
+        if can_view_speakers:
+            colspan += 1
+        if show_submission_types:
+            colspan += 1
+        if use_tracks:
+            colspan += 1
+        if can_change_submission:
+            colspan += 2  # Featured and Actions columns
+            if session_videos_enabled:
+                colspan += 1
+        return colspan
 
     def get_queryset(self):
         qs = super().get_queryset()
@@ -862,7 +911,7 @@ class SubmissionList(EventPermissionRequired, BaseSubmissionList):
                 urls = []
             submission.session_video_urls = urls
             submission.session_video_urls_json = json.dumps(urls)
-        if self.request.event.get_feature_flag('use_tracks'):
+        if self.request.event.tracks.exists():
             ctx['track_colors'] = {
                 track.pk: track.color
                 for track in self.request.event.tracks.all()
@@ -1077,7 +1126,8 @@ class SubmissionStatsMixin:
     def show_tracks(self):
         if not self.can_view_submission_stats:
             return False
-        return bool(self.request.event.get_feature_flag('use_tracks'))
+        with scope(event=self.request.event):
+            return bool(self.request.event.tracks.exists())
 
     @context
     @cached_property
