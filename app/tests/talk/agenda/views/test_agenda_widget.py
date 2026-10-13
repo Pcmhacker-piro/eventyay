@@ -258,7 +258,7 @@ def test_schedule_messages_caches_per_language(rf):
             res_zh = schedule_messages(req_zh)
             assert res_zh.status_code == 200
             assert 'Accept-Language' in res_zh.get('Vary', '')
-            assert 'Cookie' in res_zh.get('Vary', '')
+            assert 'Cookie' not in res_zh.get('Vary', '')
             data_zh = json.loads(
                 res_zh.content.decode().replace('const PRETALX_MESSAGES = ', '').rstrip(';')
             )
@@ -271,7 +271,7 @@ def test_schedule_messages_caches_per_language(rf):
             res_en = schedule_messages(req_en)
             assert res_en.status_code == 200
             assert 'Accept-Language' in res_en.get('Vary', '')
-            assert 'Cookie' in res_en.get('Vary', '')
+            assert 'Cookie' not in res_en.get('Vary', '')
             data_en = json.loads(
                 res_en.content.decode().replace('const PRETALX_MESSAGES = ', '').rstrip(';')
             )
